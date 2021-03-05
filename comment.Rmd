@@ -1,0 +1,195 @@
+---
+jupyter:
+  jupytext:
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.10.2
+  kernelspec:
+    display_name: Python 3
+    language: python
+    name: python3
+---
+
+```{python}
+import numpy as np
+import pandas as pd
+import re
+from nltk.corpus import stopwords
+from nltk.stem.porter import PorterStemmer
+import gensim
+```
+
+```{python}
+df = pd.read_csv('nightoffullmoon-1.csv')
+```
+
+```{python}
+df.head()
+```
+
+```{python}
+df = df.dropna()
+```
+
+```{python}
+rate5 = df[df['star'] == 5]
+```
+
+```{python}
+documents = df[df['star'] != 5]
+```
+
+```{python}
+documents.head()
+```
+
+```{python}
+documents['review']
+```
+
+```{python}
+stop = stopwords.words('english')
+```
+
+```{python}
+corpus=[]
+for doc in documents.review:
+    text=re.sub('[^a-zA-z]',' ', doc)
+    text=text.lower()
+    text=text.split()
+    text=[PorterStemmer().stem(word) for word in text if not word in stop]
+    text=' '.join(text)
+    corpus.append(text)
+```
+
+```{python}
+documents['clean_content'] = corpus
+```
+
+```{python}
+processed_docs = documents.clean_content.str.split()
+```
+
+```{python}
+processed_docs
+```
+
+```{python}
+dictionary=gensim.corpora.Dictionary(processed_docs)
+```
+
+```{python}
+dictionary.filter_extremes(no_below=5,no_above=0.2,keep_n=1000)
+```
+
+```{python}
+len(dictionary)
+```
+
+```{python}
+dictionary[29]
+```
+
+```{python}
+bow_corpus=[dictionary.doc2bow(doc) for doc in processed_docs]
+```
+
+```{python}
+len(bow_corpus)
+```
+
+```{python}
+bow_corpus[100]
+```
+
+```{python}
+from gensim import corpora,models
+tfidf=models.TfidfModel(bow_corpus)
+```
+
+```{python}
+corpus_tfidf=tfidf[bow_corpus]
+```
+
+```{python}
+corpus_tfidf[100]
+```
+
+```{python}
+lda_model_tfidf = gensim.models.LdaMulticore(corpus_tfidf, 
+                                             num_topics=3, 
+                                             id2word = dictionary, 
+                                             passes = 2, 
+                                             workers=4)
+```
+
+```{python}
+lda_model_tfidf.log_perplexity(bow_corpus)
+```
+
+```{python}
+for idx, topic in lda_model_tfidf.print_topics(-1):
+    print("Topic: {} Word: {}".format(idx, topic))
+    print("\n")
+```
+
+```{python}
+#0. บอสเก่งเกิน
+#1. บ่นเกมเพลย์
+#2. ด่า business model ที่เป็น freemium
+# ด่า business model ต้องจ่ายเพื่อปลดล็อคตัวละคร
+# ด่า business model ต้องจ่ายเพื่อปลดล็อคตัวละคร และ คอนเท้นต์
+```
+
+```{python}
+topic=[]
+for i in range(len(corpus_tfidf)):
+    a = lda_model_tfidf[corpus_tfidf[i]]
+    a.sort(key=lambda x: x[1],reverse=True)
+    topic.append([l[0] for l in a if l[1]>0.1])
+```
+
+```{python}
+T = []
+for t in topic:
+    T.extend(t)
+```
+
+```{python}
+for i in set(T):
+    print(f'Topic {i} have {T.count(i)} times')
+```
+
+```{python}
+documents['topic'] = topic
+```
+
+```{python}
+documents[documents['star'] == 1]['topic'].value_counts()
+```
+
+```{python}
+documents[documents['star'] == 2]['topic'].value_counts()
+```
+
+```{python}
+documents[documents['star'] == 3]['topic'].value_counts()
+```
+
+```{python}
+documents[documents['star'] == 4]['topic'].value_counts()
+```
+
+```{python}
+documents['res']
+```
+
+```{python}
+documents.to_csv('comments.csv')
+```
+
+```{python}
+
+```
